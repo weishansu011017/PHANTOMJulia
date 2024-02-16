@@ -73,9 +73,9 @@ function density(data::phjlRawDataFrame, reference_point::Vector, smoothed_kerna
     kind_flag is the coordinate system that the reference_point is given
     reference_point is in "3D"
     "cart" = cartitian
-    "cylin" = cylindrical
+    "polar" = cylindrical
     """
-    if kind_flag == "cylin"
+    if kind_flag == "polar"
         reference_point = _cylin2cart(reference_point)
     end
     truncate_multiplier = KernelFunctionValid()[nameof(smoothed_kernal)]
@@ -117,7 +117,40 @@ function surface_density(data::phjlRawDataFrame, reference_point::Vector, smooth
     return surface_density
 end
 
-function quantity_intepolate_2D(data::phjlRawDataFrame, reference_point::Vector, column_names::Vector{String}, smoothed_kernal:: Function = M4_spline,h_mode::String="intep", kind_flag::String = "cart")
+function gradient_surface_density(data::phjlRawDataFrame, reference_point::Vector, smoothed_kernal:: Function = M4_spline,h_mode::String="intep", kind_flag::String = "cart")
+    """
+    Here recommended to use a single type of particle.
+    kind_flag is the coordinate system that the reference_point is given
+    reference_point is in "2D"
+    "cart" = cartitian
+    "polar" = polar
+    """
+    if kind_flag == "polar"
+        reference_point = _cylin2cart(reference_point)
+    end
+    truncate_multiplier = KernelFunctionValid()[nameof(smoothed_kernal)]
+    snorm,xyref = get_s_ref(data, reference_point)
+    particle_mass = data.params["massoftype"]
+    h_intepolate = estimate_h_intepolate(data,snorm,truncate_multiplier,h_mode) #_easy_estimate_h_intepolate(dfdata, rnorm, 1.0)
+    grad_surface_density = zeros(Float64,2)
+    if h_intepolate == 0.0
+        return grad_surface_density
+    else
+        truncate_radius = truncate_multiplier * h_intepolate
+        mask_snorm = snorm .< truncate_radius
+        xy_filtered = xyref[mask_snorm,:]
+        buffer_array = zeros(Float64,size(xy_filtered))
+        for i in 1:size(xy_filtered)[1]
+            buffer_array[i,:] = particle_mass.*Smoothed_greident_kernel_function(smoothed_kernal,h_intepolate,xy_filtered[i,:])
+        end
+        for j in eachindex(grad_surface_density)
+            grad_surface_density[j] = sum(buffer_array[:,j])
+        end
+        return grad_surface_density
+    end
+end
+
+function quantity_intepolate_2D(data::phjlRawDataFrame, reference_point::Vector,Sigmai::Float64, column_names::Vector{String}, smoothed_kernal:: Function = M4_spline,h_mode::String="intep", kind_flag::String = "cart")
     """
     Here recommended to use a single type of particle.
     kind_flag is the coordinate system that the reference_point is given
@@ -130,9 +163,7 @@ function quantity_intepolate_2D(data::phjlRawDataFrame, reference_point::Vector,
             error("IntepolateError: No matching column '$(column_name)'.")
         end
     end
-    if !(hasproperty(data.dfdata,"rho"))
-        add_rho(data)
-    end
+
     if kind_flag == "polar"
         reference_point = _cylin2cart(reference_point)
     end
@@ -153,7 +184,7 @@ function quantity_intepolate_2D(data::phjlRawDataFrame, reference_point::Vector,
         filtered_dfdata = dfdata[indices, :]
         filtered_snorm = filter(r -> r <= truncate_radius, snorm)
         for column_name in column_names
-            filtered_dfdata[!,column_name] ./= filtered_dfdata[!,"rho"]
+            filtered_dfdata[!,column_name] ./= Sigmai
             quantity_result[column_name] = sum(particle_mass.*(filtered_dfdata[!,column_name]).*(Smoothed_kernel_function.(smoothed_kernal,h_intepolate,filtered_snorm,2)))
         end
     end
@@ -165,7 +196,7 @@ function quantity_intepolate(data::phjlRawDataFrame, reference_point::Vector, co
     Here recommended to use a single type of particle.
     kind_flag is the coordinate system that the reference_point is given
     "cart" = cartitian
-    "cylin" = cylindrical
+    "polar" = cylindrical
     """
     for column_name in column_names
         if !(hasproperty(data.dfdata,column_name))
@@ -175,7 +206,7 @@ function quantity_intepolate(data::phjlRawDataFrame, reference_point::Vector, co
     if !(hasproperty(data.dfdata,"rho"))
         add_rho(data)
     end
-    if kind_flag == "cylin"
+    if kind_flag == "polar"
         reference_point = _cylin2cart(reference_point)
     end
     quantity_result = Dict{String,Float64}()

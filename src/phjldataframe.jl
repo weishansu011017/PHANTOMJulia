@@ -1,8 +1,13 @@
-#Classes setting
+#struct setting
 struct phjlRawDataFrame
     dfdata :: DataFrame
     params :: Dict
 end
+
+"""
+All of the function that can modify the phjlRawDataFrame. 
+Can add any quantity for each particles for SPH intepolation.
+"""
 
 #Method
 function get_dim(data::phjlRawDataFrame)
@@ -21,29 +26,14 @@ function get_truncated_radius(data::phjlRawDataFrame, poffset::Float64=0.5, smoo
     return radius
 end
 
-function print_params(data::phjlRawDataFrame)
+function print_params(data::phjlRawDataFrame, pause::Bool=false)
     allkeys = sort(collect(keys(data.params)))
     for key in allkeys
         println("$(key) => $(data.params[key])")
     end
-end
-
-function pickup_position(data::phjlRawDataFrame,particle_index::Int)
-    position = Vector{Float64}(undef, 3)
-    variable = ["x","y","z"]
-    for (i,var) in enumerate(variable)
-        position[i] = data.dfdata[particle_index,var]
+    if pause
+        readline()
     end
-    return position
-end
-
-function pickup_velocity(data::phjlRawDataFrame,particle_index::Int)
-    velocity = Vector{Float64}(undef, 3)
-    variable = ["vx","vy","vz"]
-    for (i,var) in enumerate(variable)
-        velocity[i] = data.dfdata[particle_index,var]
-    end
-    return velocity
 end
 
 function pickup_general_coordinate(data::phjlRawDataFrame,particle_index::Int)
@@ -97,13 +87,6 @@ function get_rnorm_ref(data::phjlRawDataFrame, reference_position::Vector{Float6
     return rnorm
 end
 
-function get_rnorm_ref(position_array::Array , reference_position::Vector{Float64})
-    xt,yt,zt = reference_position
-    x, y, z = position_array[:,1], position_array[:,2], position_array[:,3]
-    rnorm = sqrt.((x .- xt).^2 + (y .- yt).^2 + (z.-zt).^2)
-    return rnorm
-end
-
 function get_snorm_ref(data::phjlRawDataFrame, reference_position::Vector{Float64})
     if length(reference_position) == 2
         xt,yt = reference_position
@@ -117,7 +100,11 @@ function get_snorm_ref(data::phjlRawDataFrame, reference_position::Vector{Float6
     return snorm
 end
 
-function get_snorm_ref(position_array::Array, reference_position::Vector{Float64})
+function get_snorm(data::phjlRawDataFrame)
+    return get_snorm_ref(data,[0.0,0.0,0.0])
+end
+
+function get_s_ref(data::phjlRawDataFrame,reference_position::Vector{Float64})
     if length(reference_position) == 2
         xt,yt = reference_position
     elseif length(reference_position) == 3
@@ -125,17 +112,12 @@ function get_snorm_ref(position_array::Array, reference_position::Vector{Float64
     else
         error("DimensionalError: Wrong length for reference_position.")
     end
-    x, y = position_array[:,1], position_array[:,2]
-    snorm = sqrt.((x .- xt).^2 + (y .- yt).^2)
-    return snorm
-end
+    x = data.dfdata[!,"x"] .- xt
+    y = data.dfdata[!,"y"] .- yt
+    xy = hcat(x,y)
+    snorm = sqrt.(x.^2 + y.^2)
+    return snorm, xy
 
-function get_snorm(data::phjlRawDataFrame)
-    return get_snorm_ref(data,[0.0,0.0,0.0])
-end
-
-function get_snorm(position_array::Array)
-    return get_snorm_ref(position_array,[0.0,0.0,0.0])
 end
 
 function COM2primary(data_list::Array, sinks_data:: phjlRawDataFrame,sink_particle_id::Int)
@@ -199,29 +181,29 @@ function add_Kepelarian_azimuthal_vecocity(data::phjlRawDataFrame)
 end
 
 function add_kinetic_energy(data::phjlRawDataFrame)
-    if !(hasproperty(data.dfdata,"vnorm"))
+    """
+    Add the Kinetic energy in current frame.
+    """
+    if !(hasproperty(data.dfdata, "vnorm"))
         add_norm(data)
     end
+    dfdata = data.dfdata
     particle_mass = data.params["massoftype"]
-    data.dfdata[!,"KE"] = (particle_mass/2).*data.dfdata[!,"vnorm"]
+    data.dfdata[!,"KE"] = (particle_mass/2).*dfdata[!,"vnorm"]
 end
 
-function add_normalized_angular_momentum(data::phjlRawDataFrame)
+function add_specialized_angular_momentum(data::phjlRawDataFrame)
     """add the angluar momentum w.r.t the current origin"""
     data.dfdata[!,"lx"] = (data.dfdata[!,"y"] .* data.dfdata[!,"vz"]) .- (data.dfdata[!,"z"] .* data.dfdata[!,"vy"])
     data.dfdata[!,"ly"] = (data.dfdata[!,"z"] .* data.dfdata[!,"vx"]) .- (data.dfdata[!,"x"] .* data.dfdata[!,"vz"])
     data.dfdata[!,"lz"] = (data.dfdata[!,"x"] .* data.dfdata[!,"vy"]) .- (data.dfdata[!,"y"] .* data.dfdata[!,"vx"])
-    lnorm = sqrt.(data.dfdata[!,"lx"].^2 + data.dfdata[!,"ly"].^2 + data.dfdata[!,"lz"].^2)
-    nonzero_lnorm = lnorm .!= 0
-    data.dfdata[nonzero_lnorm,"lx"] ./= lnorm[nonzero_lnorm]
-    data.dfdata[nonzero_lnorm,"ly"] ./= lnorm[nonzero_lnorm]
-    data.dfdata[nonzero_lnorm,"lz"] ./= lnorm[nonzero_lnorm]
+    data.dfdata[!,"lnorm"] = sqrt.(data.dfdata[!,"lx"].^2 + data.dfdata[!,"ly"].^2 + data.dfdata[!,"lz"].^2)
 end
 
 function add_disc_normalized_angular_momentum(data::phjlRawDataFrame, rmin::Float64, rmax::Float64)
     """calculate the disc angular momentum"""
     if !(hasproperty(data.dfdata,"lx")) || !(hasproperty(data.dfdata,"ly")) || !(hasproperty(data.dfdata,"lz"))
-        add_normalized_angular_momentum(data)
+        add_specialized_angular_momentum(data)
     end
     snorm = get_snorm(data)
     ldisc = zeros(Float64,3)
@@ -229,6 +211,7 @@ function add_disc_normalized_angular_momentum(data::phjlRawDataFrame, rmin::Floa
     for (i,dir) in enumerate(["lx","ly","lz"])
         ldisc[i] = mean(data.dfdata[disc_particles,dir])
     end
+    ldisc ./= norm(ldisc)
     data.params["ldisc"] = ldisc
 end
 
@@ -239,33 +222,9 @@ function add_tilt(data::phjlRawDataFrame, rmin::Float64, rmax::Float64)
     if !(hasproperty(data.dfdata,"rnorm"))
         add_norm(data)
     end
-    rlproject = data.dfdata[!,"x"].*data.dfdata[!,"lx"] + data.dfdata[!,"y"].*data.dfdata[!,"ly"] + data.dfdata[!,"z"].*data.dfdata[!,"lz"]
+    rlproject = (data.dfdata[!,"x"].*data.dfdata[!,"lx"] + data.dfdata[!,"y"].*data.dfdata[!,"ly"] + data.dfdata[!,"z"].*data.dfdata[!,"lz"])./data.dfdata[!,"lnorm"]
     nonzero_rnorm = data.dfdata[!,"rnorm"] .!= 0
     data.dfdata[!,"tilt"] = asin.(rlproject[nonzero_rnorm]./data.dfdata[nonzero_rnorm,"rnorm"])
-end
-
-function filtering_particles(data::phjlRawDataFrame, Hr_array::Vector, r_params::Tuple{Float64,Float64,Int},smoothed_kernal:: Function = M4_spline)
-    @info "Start filtering particles. "
-    if (length(Hr_array) != r_params[3])
-        error("ComparisionError: Radius_mismatching!")
-    end
-    if !(haskey(data.params, "h_mean"))
-        add_mean_h(data)
-    end
-    if !(haskey(data.params, "ldisc"))
-        add_disc_normalized_angular_momentum(data, r_params[1], r_params[2])
-    end
-
-    r_array = LinRange(r_params...)
-    snorm = get_snorm(data)
-    Hr_spline = CubicSplineInterpolation(r_array, Hr_array .+ ((KernelFunctionValid()[nameof(smoothed_kernal)]+0.5).*data.params["h_mean"]), extrapolation_bc=Line())
-    expected_height = Hr_spline(snorm)
-
-    new_dfdata = data.dfdata[abs.(data.dfdata.z .* data.params["ldisc"][3]) .<= expected_height, :]
-    new_data = phjlRawDataFrame(new_dfdata, data.params)
-
-    @info "End filtering particles. $(nrow(new_data.dfdata)) particles is remained."
-    return new_data
 end
 
 function rotate_to_primary_L(data_list::Array, rmin::Float64, rmax::Float64, target_laxis::Union{Nothing, Vector{Float64}} = nothing)
@@ -329,6 +288,36 @@ function rotate_to_primary_L(data_list::Array, rmin::Float64, rmax::Float64, tar
         add_disc_normalized_angular_momentum(data,rmin,rmax)
     end
     return laxis
+end
+
+function add_eccentricity(data::phjlRawDataFrame,sink_data::phjlRawDataFrame,G::Float64=1.0)
+    """
+    Add the eccentricity for each particle with respect to current origin. Default to be primary.
+    """
+    if !(haskey(sink_data.params, "Origin_located")) || (sink_data.params["Origin_located"] == "COM")
+        error("OriginLocatedError: Wrong origin located.")
+    elseif (sink_data.params["Origin_located"] == "primary") || (sink_data.params["Origin_located"] == "secondary")
+        nothing
+    else
+        error("OriginLocatedError: The origin is not valid for the eccentricity calculation.")
+    end
+    M1 = sink_data.params["Origin_sink_mass"]
+    μ = G * M1
+    dfdata = data.dfdata
+    if !(hasproperty(dfdata, "rnorm")) || !(hasproperty(dfdata, "vnorm"))
+        add_norm(dfdata)
+    end
+    x, y, z = dfdata[!,"x"], dfdata[!,"y"], dfdata[!,"z"]
+    vx, vy, vz = dfdata[!,"vx"], dfdata[!,"vy"], dfdata[!,"vz"]
+    rnorm = dfdata[!,"rnorm"]
+    vnorm = dfdata[!,"vnorm"]
+    rdotv = (x.*vx) .+ (y.*vy) .+ (z.*vz)
+    vnorm2 = vnorm .^2
+    invrnorm = 1 ./rnorm
+    ex = ((vnorm2./μ) .- invrnorm).* x - (rdotv./μ) .* vx
+    ey = ((vnorm2./μ) .- invrnorm).* y - (rdotv./μ) .* vy
+    ez = ((vnorm2./μ) .- invrnorm).* z - (rdotv./μ) .* vz
+    dfdata[!,"e"] = sqrt.(ex.^2 + ey.^2 + ez.^2)
 end
 
 for name in names(PHANTOMJulia; all=true)

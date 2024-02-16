@@ -184,6 +184,8 @@ end
 
 function read_phantom(filename::String, separate_types::String = "sinks", ignore_inactive::Bool = true)
     """
+    This function and documentation is copy from the "sarracen" package for Python.
+    ----------
     Read data from a Phantom dump file.
 
     This reads the native binary format of Phantom dump files, which in turn were derived from the binary file format

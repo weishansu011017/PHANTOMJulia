@@ -42,7 +42,7 @@ function get_analysis_info(directory::String, filename::String)
 end
 
 function First_logging()
-    @info "Start Logging...\nPHANTOMJulia analysis Module\n  Version: 0.0.1\n    Make by Wei-Shan Su, 2024\n"
+    @info "Start Logging...\nPHANTOMJulia analysis Module\n  Version: 1.0.0\n    Make by Wei-Shan Su, 2024\n"
 end
 
 function initial_logging(info::Dict{String,Any})

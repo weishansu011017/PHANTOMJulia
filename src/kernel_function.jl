@@ -25,7 +25,7 @@ function KernelFunctionnorm()
 end
 
 # Kernel Functions
-function M4_spline(q::Float64)
+function M4_spline(q::T) where T
     if 0 <= q < 1
         return (1 - (1.5 * q) + 0.75*(q^3))
     elseif 1 <= q < 2
@@ -37,7 +37,7 @@ function M4_spline(q::Float64)
     end
 end
 
-function M5_spline(q::Float64)
+function M5_spline(q::T) where T
     if 0 <= q < 0.5
         return ((2.5 - q)^4 - 5*(1.5 - q)^4 + 10*(0.5 - q)^4)
     elseif 0.5 <= q < 1.5
@@ -51,7 +51,7 @@ function M5_spline(q::Float64)
     end
 end
 
-function M6_spline(q::Float64)
+function M6_spline(q::T) where T
     if 0 <= q < 1
         return ((3 - q)^5 - 6*(2 - q)^5 + 15*(1 - q)^5)
     elseif 1 <= q < 2
@@ -66,7 +66,7 @@ function M6_spline(q::Float64)
 end
 
 
-function C2_Wendland(q::Float64)
+function C2_Wendland(q::T) where T
     if q < 2
         return (((1-0.5*q)^4)*(2*q + 1))
     elseif q >= 2
@@ -76,7 +76,7 @@ function C2_Wendland(q::Float64)
     end
 end
 
-function C4_Wendland(q::Float64)
+function C4_Wendland(q::T) where T
     if q < 2
         return (((1-0.5*q)^6)*((35/12)*(q^2) + 3*q + 1))
     elseif q >= 2
@@ -86,7 +86,7 @@ function C4_Wendland(q::Float64)
     end
 end
 
-function C6_Wendland(q::Float64)
+function C6_Wendland(q::T) where T
     if q < 2
         return (((1-0.5*q)^8)*(4*(q^3) + 6.25*(q^2) + 4*q + 1))
     elseif q >= 2
@@ -117,9 +117,19 @@ function Smoothed_greident_kernel_function(f::Function, h::Float32, ra::Vector, 
     rab::Vector = ra - rb
     hatrab::Vector = rab./norm(rab)
     q::Float64 = norm(rab)/h
-    dim::Int32 = length(ra)
+    dim::Int32 = length(rab)
     hr::Float64 = h^(-(dim+1))
     F_ab::Float64 = hr * (ForwardDiff(f,q)) * KernelFunctionnorm()[nameof(f)][dim]
+    influence::Vector = hatrab.*F_ab
+    return influence
+end
+
+function Smoothed_greident_kernel_function(f::Function, h::Float32, rab::Vector)
+    hatrab::Vector = rab./norm(rab)
+    q::Float64 = norm(rab)/h
+    dim::Int32 = length(rab)
+    hr::Float64 = h^(-(dim+1))
+    F_ab::Float64 = hr * (ForwardDiff.derivative(f,q)) * KernelFunctionnorm()[nameof(f)][dim]
     influence::Vector = hatrab.*F_ab
     return influence
 end

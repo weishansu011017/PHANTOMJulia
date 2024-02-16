@@ -7,7 +7,9 @@ using DataStructures
 using Dates
 using FilesystemDatastructures
 using ForwardDiff               # Automatic differentiation package
+using HDF5
 using Interpolations
+using LaTeXStrings
 using LinearAlgebra
 using Logging
 using LoggingExtras
