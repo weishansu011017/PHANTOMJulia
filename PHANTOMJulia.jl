@@ -19,4 +19,5 @@ include("./src/Ring-dependent_analysis.jl")
 #Level 6 (Extract data and information)
 include("./src/logging.jl")
 include("./src/Extract_data.jl")
+include("./src/result_toolkits.jl")
 end
