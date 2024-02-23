@@ -3,34 +3,36 @@ abstract type Abstract_analysis end
 
 struct Pitch_analysis_buffer <: Abstract_analysis_buffer
     time :: Float64
-    data_dict :: Dict{String, gridbackend}
+    data_dict :: Dict{Int, gridbackend}
     theta :: LinRange
     radius :: LinRange
     column_names :: Dict{Int,String}
 end
 
-struct Pitch_analysis <: Abstract_analysis
+mutable struct Pitch_analysis <: Abstract_analysis
     time :: Float64
-    data_dict :: Dict{String, Array{Float64}}
+    data_dict :: Dict{Int, Array{Float64}}
     theta :: Vector{Float64}
     radius :: Vector{Float64}
     column_names :: Dict{Int,String}
+    params :: Dict{String,Any}
 end
 
 struct Spiral_analysis_buffer <: Abstract_analysis_buffer
     time :: Float64
     radius :: Float64
-    data_dict :: Dict{String, gridbackend}
+    data_dict :: Dict{Int, gridbackend}
     theta :: LinRange
     column_names :: Dict{Int,String}
 end
 
-struct Spiral_analysis <: Abstract_analysis
+mutable struct Spiral_analysis <: Abstract_analysis
     time :: Float64
     radius :: Float64
-    data_dict :: Dict{String, Array{Float64}}
+    data_dict :: Dict{Int, Array{Float64}}
     theta :: Vector{Float64}
     column_names :: Dict{Int,String}
+    params :: Dict{String,Any}
 end
 
 function extract_number(str::String)
@@ -39,8 +41,8 @@ function extract_number(str::String)
 end
 
 function convert_field(value)
-    if typeof(value) <: Dict{String, gridbackend}
-        converted_value = Dict{String, Array}()
+    if typeof(value) <: Dict{Int, gridbackend}
+        converted_value = Dict{Int, Array}()
         for key in keys(value)
             converted_value[key] = value[key].grid
         end
@@ -80,17 +82,17 @@ function Pitch_analysis_buffer(time::Float64, Gas_grid::Dict, Dust_grid::Dict)
     key_values = ["Sigma","rho","vr","vphi","e","∇Sigmax","∇Sigmay"]
     column_names = create_column_names(key_values,["g","d"])
     column_dict = create_column_dict(column_names)
-    gridbackend_dict = Dict{String, gridbackend}()
+    gridbackend_dict = Dict{Int, gridbackend}()
 
     for key in key_values
         keyg = string(key, "_", "g")
         keyd = string(key, "_", "d")
         for dictkey in keys(column_dict)
             if occursin(keyg,column_dict[dictkey])
-                gridbackend_dict[column_dict[dictkey]] = Gas_grid[key]
+                gridbackend_dict[dictkey] = Gas_grid[key]
             end
             if occursin(keyd,column_dict[dictkey])
-                gridbackend_dict[column_dict[dictkey]] = Dust_grid[key]
+                gridbackend_dict[dictkey] = Dust_grid[key]
             end
         end
     end
@@ -110,17 +112,17 @@ function Spiral_analysis_buffer(time::Float64,radius::Float64, Gas_grid::Dict, D
     key_values = ["Sigma","tilt"]
     column_names = create_column_names(key_values,["g","d"])
     column_dict = create_column_dict(column_names)
-    gridbackend_dict = Dict{String, gridbackend}()
+    gridbackend_dict = Dict{Int, gridbackend}()
 
     for key in key_values
         keyg = string(key, "_", "g")
         keyd = string(key, "_", "d")
         for dictkey in keys(column_dict)
             if occursin(keyg,column_dict[dictkey])
-                gridbackend_dict[column_dict[dictkey]] = Gas_grid[key]
+                gridbackend_dict[dictkey] = Gas_grid[key]
             end
             if occursin(keyd,column_dict[dictkey])
-                gridbackend_dict[column_dict[dictkey]] = Dust_grid[key]
+                gridbackend_dict[dictkey] = Dust_grid[key]
             end
         end
     end
@@ -141,12 +143,13 @@ function self_check_pitch(input :: Pitch_analysis_buffer)
     iaxis = Array{LinRange}(undef,2)
     iaxis[1] = input.radius
     iaxis[2] = input.theta
-    for column in values(input.column_names)
+    for key in keys(input.column_names)
+        column = input.column_names[key]
         if occursin("theta",column)
             continue
         end
-        if typeof(input_data[column])<:gridbackend
-            axis = input_data[column].axis
+        if typeof(input_data[key])<:gridbackend
+            axis = input_data[key].axis
             for i in eachindex(iaxis)
                 if !(iaxis[i] == axis[i])
                     error("AxisError: Mismatching of axis in $column")
@@ -160,12 +163,13 @@ function self_check_spiral(input :: Spiral_analysis_buffer)
     input_data = input.data_dict
     iaxis = Array{LinRange}(undef,1)
     iaxis[1] = input.theta
-    for column in values(input.column_names)
+    for key in keys(input.column_names)
+        column = input.column_names[key]
         if occursin("theta",column)
             continue
         end
-        if typeof(input_data[column])<:gridbackend
-            axis = input_data[column].axis
+        if typeof(input_data[key])<:gridbackend
+            axis = input_data[key].axis
             for i in eachindex(iaxis)
                 if !(iaxis[i] == axis[i])
                     error("AxisError: Mismatching of axis in $column")
@@ -190,7 +194,7 @@ function buffer2output(buffer_struct::Abstract_analysis_buffer)
     fields = fieldnames(buffer_type)
     converted_values = [convert_field(getfield(buffer_struct, f)) for f in fields]
 
-    return eval(output_type)(converted_values...)
+    return eval(output_type)(converted_values...,Dict{String,Bool}())
 end
 
 function Write_pitch_dat(filename::String, data::Pitch_analysis)
@@ -210,7 +214,7 @@ function Write_pitch_dat(filename::String, data::Pitch_analysis)
                     if occursin("theta",column)
                         continue
                     end
-                    @printf(f,"%18.10E ",data.data_dict[column][i,j])
+                    @printf(f,"%18.10E ",data.data_dict[column_index][i,j])
                 end
                 println(f,"")
             end
@@ -235,7 +239,7 @@ function Write_spiral_dat(filename::String, data::Spiral_analysis)
                 if occursin("theta",column)
                     continue
                 end
-                @printf(f,"%18.10E ",data.data_dict[column][j])
+                @printf(f,"%18.10E ",data.data_dict[column_index][j])
             end
             println(f,"")
         end
@@ -258,16 +262,18 @@ function Write_H5DF(filename::String, data::Abstract_analysis)
     h5open(output_filename,"w") do f
         write(f, "struct_type", type_data)
         for name in fieldnames(type)
-            val = getfield(data,name)
-            if typeof(val) <: AbstractArray
-                write(f, string(name), val)
-            elseif typeof(val) <: Dict
-                g = create_group(f, string(name))
-                for (key, value) in val
-                    write(g, string(key), value)
+            if String(name) != "params"
+                val = getfield(data,name)
+                if typeof(val) <: AbstractArray
+                    write(f, string(name), val)
+                elseif typeof(val) <: Dict
+                    g = create_group(f, string(name))
+                    for (key, value) in val
+                        write(g, string(key), value)
+                    end
+                else
+                    write(f, string(name), val)
                 end
-            else
-                write(f, string(name), val)
             end
         end
     end
