@@ -80,7 +80,7 @@ function density(data::phjlRawDataFrame, reference_point::Vector, smoothed_kerna
     end
     truncate_multiplier = KernelFunctionValid()[nameof(smoothed_kernal)]
     rnorm = get_rnorm_ref(data, reference_point)
-    particle_mass = data.params["massoftype"]
+    particle_mass = data.params["mass"]
     h_intepolate = estimate_h_intepolate(data,rnorm,truncate_multiplier,h_mode) #_easy_estimate_h_intepolate(dfdata, rnorm, 1.0)
     if h_intepolate == 0.0
         density = 0.0
@@ -105,7 +105,7 @@ function surface_density(data::phjlRawDataFrame, reference_point::Vector, smooth
     end
     truncate_multiplier = KernelFunctionValid()[nameof(smoothed_kernal)]
     snorm = get_snorm_ref(data, reference_point)
-    particle_mass = data.params["massoftype"]
+    particle_mass = data.params["mass"]
     h_intepolate = estimate_h_intepolate(data,snorm,truncate_multiplier,h_mode) #_easy_estimate_h_intepolate(dfdata, rnorm, 1.0)
     if h_intepolate == 0.0
         surface_density = 0.0
@@ -130,7 +130,7 @@ function gradient_surface_density(data::phjlRawDataFrame, reference_point::Vecto
     end
     truncate_multiplier = KernelFunctionValid()[nameof(smoothed_kernal)]
     snorm,xyref = get_s_ref(data, reference_point)
-    particle_mass = data.params["massoftype"]
+    particle_mass = data.params["mass"]
     h_intepolate = estimate_h_intepolate(data,snorm,truncate_multiplier,h_mode) #_easy_estimate_h_intepolate(dfdata, rnorm, 1.0)
     grad_surface_density = zeros(Float64,2)
     if h_intepolate == 0.0
@@ -171,7 +171,7 @@ function quantity_intepolate_2D(data::phjlRawDataFrame, reference_point::Vector,
     quantity_result = Dict{String,Float64}()
     truncate_multiplier = KernelFunctionValid()[nameof(smoothed_kernal)]
     snorm = get_snorm_ref(data, reference_point)
-    particle_mass = data.params["massoftype"]
+    particle_mass = data.params["mass"]
     h_intepolate = estimate_h_intepolate(data, snorm, truncate_multiplier,h_mode)
     dfdata = data.dfdata
     
@@ -212,7 +212,7 @@ function quantity_intepolate(data::phjlRawDataFrame, reference_point::Vector, co
     quantity_result = Dict{String,Float64}()
     truncate_multiplier = KernelFunctionValid()[nameof(smoothed_kernal)]
     rnorm = get_rnorm_ref(data, reference_point)
-    particle_mass = data.params["massoftype"]
+    particle_mass = data.params["mass"]
     h_intepolate = estimate_h_intepolate(data, rnorm, truncate_multiplier,h_mode)
     dfdata = data.dfdata
     

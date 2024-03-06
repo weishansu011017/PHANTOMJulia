@@ -1,7 +1,7 @@
 name = "PHANTOMJulia"
 uuid = "12e68c0a-fe7c-454f-9505-7c14ab486c16"
 authors = ["Wei-Shan Su weishansu011017@gmail.com"]
-version = "1.1.0"
+version = "1.2.0"
 
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"

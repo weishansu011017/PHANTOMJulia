@@ -112,8 +112,8 @@ function get_s_ref(data::phjlRawDataFrame,reference_position::Vector{Float64})
     else
         error("DimensionalError: Wrong length for reference_position.")
     end
-    x = data.dfdata[!,"x"] .- xt
-    y = data.dfdata[!,"y"] .- yt
+    x = xt .- data.dfdata[!,"x"] 
+    y = yt .- data.dfdata[!,"y"] 
     xy = hcat(x,y)
     snorm = sqrt.(x.^2 + y.^2)
     return snorm, xy
@@ -145,11 +145,11 @@ end
 
 function add_cylindrical(data::phjlRawDataFrame)
     data.dfdata[!,"s"] = sqrt.(data.dfdata[!,"x"].^2+data.dfdata[!,"y"].^2)
-    data.dfdata[!,"phi"] = atan.(data.dfdata[!,"y"],data.dfdata[!,"x"])
-    sinphi = sin.(data.dfdata[!,"phi"])
-    cosphi = cos.(data.dfdata[!,"phi"])
-    data.dfdata[!,"vr"] = (cosphi.*data.dfdata[!,"vx"] + sinphi.*data.dfdata[!,"vy"])
-    data.dfdata[!,"vphi"] = (cosphi.*data.dfdata[!,"vy"] - sinphi.*data.dfdata[!,"vx"])
+    data.dfdata[!,"theta"] = atan.(data.dfdata[!,"y"],data.dfdata[!,"x"])
+    sintheta = sin.(data.dfdata[!,"theta"])
+    costheta = cos.(data.dfdata[!,"theta"])
+    data.dfdata[!,"vr"] = (costheta.*data.dfdata[!,"vx"] + sintheta.*data.dfdata[!,"vy"])
+    data.dfdata[!,"vtheta"] = (costheta.*data.dfdata[!,"vy"] - sintheta.*data.dfdata[!,"vx"])
 end
 
 function add_norm(data::phjlRawDataFrame)
@@ -175,9 +175,9 @@ function add_Kepelarian_azimuthal_vecocity(data::phjlRawDataFrame)
     end
     G = 1.0
     M = data.params["Origin_sink_mass"]
-    data.dfdata[!,"vphi_k"] = sqrt.((G*M)./data.dfdata[!,"s"])
-    data.dfdata[!,"vphi_sub"] = data.dfdata[!,"vphi"] - data.dfdata[!,"vphi_k"]
-    data.dfdata[!,"vsubnorm"] = sqrt.(data.dfdata[!,"vr"].^2 + data.dfdata[!,"vphi_sub"].^2 + data.dfdata[!,"vz"].^2)
+    data.dfdata[!,"vtheta_k"] = sqrt.((G*M)./data.dfdata[!,"s"])
+    data.dfdata[!,"vtheta_sub"] = data.dfdata[!,"vtheta"] - data.dfdata[!,"vtheta_k"]
+    data.dfdata[!,"vsubnorm"] = sqrt.(data.dfdata[!,"vr"].^2 + data.dfdata[!,"vtheta_sub"].^2 + data.dfdata[!,"vz"].^2)
 end
 
 function add_kinetic_energy(data::phjlRawDataFrame)

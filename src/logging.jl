@@ -7,6 +7,15 @@ macro time_and_print(expr)
     end
 end
 
+macro parts_time_evaluation_print(expr)
+    return quote
+        local elapsed_time = @elapsed begin
+            $(esc(expr))
+        end
+        @info "Time elapsed: $(elapsed_time) seconds with the function."
+    end
+end
+
 macro setup_logging(logfile)
     return quote
         # Open log file

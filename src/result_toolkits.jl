@@ -100,14 +100,14 @@ function transfer_cgs(data :: Abstract_analysis,umass::Float64=1.9891E+33, udist
                 else
                     column_unit[key] = L"$v_r$ [cm s$^{-1}$]"
                 end
-            elseif occursin("vphi",column_name)
+            elseif occursin("vtheta",column_name)
                 data.data_dict[key] *= uv
                 if occursin("_g",column_name)
-                    column_unit[key] = L"$v_{\phi,g}$ [cm s$^{-1}$]"
+                    column_unit[key] = L"$v_{\theta,g}$ [cm s$^{-1}$]"
                 elseif occursin("_d",column_name)
-                    column_unit[key] = L"$v_{\phi,d}$ [cm s$^{-1}$]"
+                    column_unit[key] = L"$v_{\theta,d}$ [cm s$^{-1}$]"
                 else
-                    column_unit[key] = L"$v_{\phi}$ [cm s$^{-1}$]"
+                    column_unit[key] = L"$v_{\theta}$ [cm s$^{-1}$]"
                 end
             else
                 column_unit[key] = L""
@@ -145,8 +145,10 @@ function add_more_label(data::Abstract_analysis, column_index::Int, label::LaTeX
     data.params["column_units"][column_index] = label
 end
 
-function combine_array(data::Abstract_analysis, column_index::Vector{Int}, Combine_method::Function)
-    if length(column_index) == 1
+function combine_array(data::Abstract_analysis, column_index::Union{Vector{Int},Int}, Combine_method::Function)
+    if typeof(column_index) <: Int
+        return data.data_dict[column_index], false
+    elseif length(column_index) == 1
         return data.data_dict[column_index[1]], false
     elseif length(column_index) == 0
         error("CombineError: Missing column index.")
@@ -154,22 +156,54 @@ function combine_array(data::Abstract_analysis, column_index::Vector{Int}, Combi
         array_size = size(data.data_dict[column_index[1]])
         array_buffer = zeros(Float64,array_size...,length(column_index))
         result = zeros(Float64,array_size...)
-        theta_array = data.theta
         for (i,val) in enumerate(column_index)
             for idx in CartesianIndices(array_size)
                 array_buffer[idx,i] = data.data_dict[val][idx]
             end
         end
-        for i in 1:array_size[1]
-            for j in 1:array_size[2]
-                result[i,j] = Combine_method(array_buffer[i,j,:],theta_array[j])
-            end
+        for idx in CartesianIndices(array_size)
+            result[idx] = Combine_method(data,array_buffer[idx,:],idx)
         end
     end
     return result, true
 end
 
-function azimuthal_gradient_unit(array::Array, theta::Float64)
+function spacial_gradient_unit(data::Abstract_analysis, array::Array,idx::Any)
+    """
+    The input should include these three value.
+    data: The analysis data.
+    array: The non-combine_array for a single point.
+    idx: The indices of point in the grid.
+    """
+    theta = data.theta[idx[2]]
+    sinθ = sin(theta)
+    cosθ = cos(theta)
+    norma = norm(array)
+    normalized_array = array./norma
+    return cosθ * normalized_array[1] + sinθ * normalized_array[2]
+end
+
+function azimuthal_gradient(data::Abstract_analysis, array::Array,idx::Any)
+    """
+    The input should include these three value.
+    data: The analysis data.
+    array: The non-combine_array for a single point.
+    idx: The indices of point in the grid.
+    """
+    theta = data.theta[idx[2]]
+    sinθ = sin(theta)
+    cosθ = cos(theta)
+    return -sinθ * array[1] + cosθ * array[2]
+end
+
+function azimuthal_gradient_unit(data::Abstract_analysis, array::Array,idx::Any)
+    """
+    The input should include these three value.
+    data: The analysis data.
+    array: The non-combine_array for a single point.
+    idx: The indices of point in the grid.
+    """
+    theta = data.theta[idx[2]]
     sinθ = sin(theta)
     cosθ = cos(theta)
     norma = norm(array)
@@ -177,8 +211,34 @@ function azimuthal_gradient_unit(array::Array, theta::Float64)
     return -sinθ * normalized_array[1] + cosθ * normalized_array[2]
 end
 
+function Euclid_norm(data::Abstract_analysis, array::Array,idx::Any)
+    """
+    The input should include these three value.
+    data: The analysis data.
+    array: The non-combine_array for a single point.
+    idx: The indices of point in the grid.
+    """
+    return norm(array)
+end
 
-function polar_plot(data::Pitch_analysis, column_index::Array{Int}, Combine_method::Function=azimuthal_gradient_unit, label::LaTeXString=L"", Log_mode::Bool=false)
+function pitch_angle(data::Abstract_analysis, array::Array,idx::Any)
+    """
+    The input should include these three value.
+    data: The analysis data.
+    array: The non-combine_array for a single point.
+    idx: The indices of point in the grid.
+    """
+    return acos(abs(azimuthal_gradient_unit(data,array,idx)))*180/pi
+end
+
+function plot_circle_proj_polar(radius::Float64)
+    θ = LinRange(0, 2π, 500)
+    r = fill(radius, length(θ))
+    plot!(θ, r, label="Circle of radius $radius",linecolor=:lime, linewidth=2)
+end
+
+
+function polar_plot(data::Pitch_analysis, column_index::Union{Vector{Int},Int}, Combine_method::Function=azimuthal_gradient_unit, label::LaTeXString=L"", Log_mode::Bool=false)
     plot_font = "Computer Modern"
     default(fontfamily=plot_font,linewidth=2, framestyle=:box, label=nothing, grid=false)
 
@@ -186,9 +246,13 @@ function polar_plot(data::Pitch_analysis, column_index::Array{Int}, Combine_meth
     radius_array = data.radius
     theta_array = data.theta
     z,combine_flags = combine_array(data, column_index, Combine_method)
-
     if (label == L"") && !(combine_flags)
-        colormap_label = data.params["column_units"][column_index[1]]
+        if typeof(column_index) <: Int
+            colormap_label = data.params["column_units"][column_index]
+        else
+            colormap_label = data.params["column_units"][column_index[1]]
+        end
+        
     else
         colormap_label = label
     end
@@ -213,7 +277,59 @@ function polar_plot(data::Pitch_analysis, column_index::Array{Int}, Combine_meth
     display(p)
 end
 
+function _singleframe_pitch_angle_analysis(data::Pitch_analysis, radius::Float64, type::String="gas",window_size::Int=3)
+    function pitch_angle(array::Array,theta::Float64)
+        sinθ = sin(theta)
+        cosθ = cos(theta)
+        N = norm(array)
+        normalized_array = array./N
+        return (180/pi)*acos(abs(-sinθ*normalized_array[1] + cosθ*normalized_array[2]))
+    end
+    if type == "gas"
+        column_index = 2
+        grad_column_index = [12,14]
+    elseif type == "dust"
+        column_index = 3
+        grad_column_index = [13,15]
+    end
+    if iseven(window_size)
+        window_size += 1
+    end
+    hwindow_size = Int((window_size-1)/2)
+    radius_index = value2closestvalueindex(data.radius, radius)
+    sigma_array = data.data_dict[column_index][radius_index,:]
+    max_sigma_index = find_array_max_index(sigma_array)
+    radius_index_array = Int.(collect(radius_index-hwindow_size:1:radius_index+hwindow_size))
+    sigma_index_array = Int.(collect(max_sigma_index-hwindow_size:1:max_sigma_index+hwindow_size))
+    theta_sigma_array = data.theta[sigma_index_array]
+    ∇sigma = zeros(Float64,length(radius_index_array),length(sigma_index_array),2)
+    pitch_angle_array = zeros(Float64,length(radius_index_array),length(sigma_index_array))
+    for (i,r_index) in enumerate(radius_index_array)
+        for (j,s_index) in enumerate(sigma_index_array)
+            for (k,c_index) in enumerate(grad_column_index)
+                ∇sigma[i,j,k] =  data.data_dict[c_index][r_index,s_index]
+            end
+            pitch_angle_array[i,j] = pitch_angle(∇sigma[i,j,:],theta_sigma_array[j])
+        end
+    end
+    return weighted_mean(pitch_angle_array)
+end
 
+function test(data,N=20,M=6)
+    result = zeros(Float64,N,M)
+    ite = LinRange(71.0,90.0,N)
+    indexite = collect(1:2:2*M-1)
+    plot([71],[45])
+    for k in eachindex(indexite)
+        for (i,radius) in enumerate(ite)
+            result[i,k] = _singleframe_pitch_angle_analysis(data,radius,"dust",indexite[k])
+        end
+        p = plot!(ite, result[:,k],label="Window size = $(indexite[k])",size = (1200,700))
+        xlabel!("distance (au)")
+        ylabel!("pitch angle ")
+        display(p)
+    end
+end
 
 
 

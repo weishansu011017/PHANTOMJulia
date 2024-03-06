@@ -78,8 +78,7 @@ function create_column_dict(column_names::Array{String})
     return column_format
 end
 
-function Pitch_analysis_buffer(time::Float64, Gas_grid::Dict, Dust_grid::Dict)
-    key_values = ["Sigma","rho","vr","vphi","e","∇Sigmax","∇Sigmay"]
+function Pitch_analysis_buffer(time::Float64, Gas_grid::Dict, Dust_grid::Dict, key_values::Vector{String})
     column_names = create_column_names(key_values,["g","d"])
     column_dict = create_column_dict(column_names)
     gridbackend_dict = Dict{Int, gridbackend}()
@@ -89,10 +88,26 @@ function Pitch_analysis_buffer(time::Float64, Gas_grid::Dict, Dust_grid::Dict)
         keyd = string(key, "_", "d")
         for dictkey in keys(column_dict)
             if occursin(keyg,column_dict[dictkey])
-                gridbackend_dict[dictkey] = Gas_grid[key]
+                try
+                    gridbackend_dict[dictkey] = Gas_grid[key]
+                catch e 
+                    if isa(e,KeyError)
+                        error("ExtractError: Missing key $(key) in Gas_grid!")
+                    else
+                        error("ExtractError: UnknownError")
+                    end
+                end
             end
             if occursin(keyd,column_dict[dictkey])
-                gridbackend_dict[dictkey] = Dust_grid[key]
+                try
+                    gridbackend_dict[dictkey] = Dust_grid[key]
+                catch e 
+                    if isa(e,KeyError)
+                        error("ExtractError: Missing key $(key) in Dust_grid!")
+                    else
+                        error("ExtractError: Error ($e) occured when loading Dust_grid!")
+                    end
+                end
             end
         end
     end
@@ -108,8 +123,7 @@ function Pitch_analysis_buffer(time::Float64, Gas_grid::Dict, Dust_grid::Dict)
     )
 end
 
-function Spiral_analysis_buffer(time::Float64,radius::Float64, Gas_grid::Dict, Dust_grid::Dict)
-    key_values = ["Sigma","tilt"]
+function Spiral_analysis_buffer(time::Float64,radius::Float64, Gas_grid::Dict, Dust_grid::Dict,key_values::Vector{String})
     column_names = create_column_names(key_values,["g","d"])
     column_dict = create_column_dict(column_names)
     gridbackend_dict = Dict{Int, gridbackend}()
@@ -119,10 +133,26 @@ function Spiral_analysis_buffer(time::Float64,radius::Float64, Gas_grid::Dict, D
         keyd = string(key, "_", "d")
         for dictkey in keys(column_dict)
             if occursin(keyg,column_dict[dictkey])
-                gridbackend_dict[dictkey] = Gas_grid[key]
+                try 
+                    gridbackend_dict[dictkey] = Gas_grid[key]
+                catch e
+                    if isa(e,KeyError)
+                        error("ExtractError: Missing key $(key) in Gas_grid!")
+                    else
+                        error("ExtractError: Error ($e) occured when loading Dust_grid!")
+                    end
+                end
             end
             if occursin(keyd,column_dict[dictkey])
-                gridbackend_dict[dictkey] = Dust_grid[key]
+                try 
+                    gridbackend_dict[dictkey] = Dust_grid[key]
+                catch
+                    if isa(e,KeyError)
+                        error("ExtractError: Missing key $(key) in Dust_grid!")
+                    else
+                        error("ExtractError: Error ($e) occured when loading Dust_grid!")
+                    end
+                end
             end
         end
     end
@@ -210,8 +240,7 @@ function Write_pitch_dat(filename::String, data::Pitch_analysis)
             for j in eachindex(data.theta)
                 @printf(f,"%18.10E ",data.theta[j])
                 for column_index in 1:length(data.column_names)
-                    column = data.column_names[column_index]
-                    if occursin("theta",column)
+                    if column_index == 1
                         continue
                     end
                     @printf(f,"%18.10E ",data.data_dict[column_index][i,j])
@@ -235,8 +264,7 @@ function Write_spiral_dat(filename::String, data::Spiral_analysis)
         for j in eachindex(data.theta)
             @printf(f,"%18.10E ",data.theta[j])
             for column_index in 1:length(data.column_names)
-                column = data.column_names[column_index]
-                if occursin("theta",column)
+                if column_index == 1
                     continue
                 end
                 @printf(f,"%18.10E ",data.data_dict[column_index][j])
@@ -246,7 +274,6 @@ function Write_spiral_dat(filename::String, data::Spiral_analysis)
     end
     @info "Finished writting the output file for spiral analysis."
 end
-
 
 function Write_H5DF(filename::String, data::Abstract_analysis)
     type = typeof(data)
@@ -276,6 +303,23 @@ function Write_H5DF(filename::String, data::Abstract_analysis)
                 end
             end
         end
+    end
+end
+
+function Write_output(filename::String, data::Abstract_analysis,mode::String, output_datatype::String="H5DF")
+    if output_datatype=="H5DF"
+        Write_H5DF(filename,data)
+    elseif output_datatype=="dat"
+        if mode=="Spiral"
+            Write_spiral_dat(filename,data)
+        elseif mode=="Pitch"
+            Write_pitch_dat(filename,data)
+        else
+            @warn "OutputWarn: The output mode $mode is unsupported. Changing the output datatype to H5DF!"
+            Write_H5DF(filename,data)
+        end
+    else
+        error("OutputError: Unsupported output datatype $(output_datatype)!")
     end
 end
 

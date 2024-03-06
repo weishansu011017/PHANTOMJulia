@@ -5,7 +5,7 @@
 #PBS -o output.out
 #PBS -e error.err
 ###### Number of nodes and cores ######
-#PBS -l select=1:ncpus=32:mpiprocs=32
+#PBS -l select=1:ncpus=64:mpiprocs=64
 ###### Specify how many hours do you need ######
 #PBS -l walltime=8:00:00
 ###### Queue name ######

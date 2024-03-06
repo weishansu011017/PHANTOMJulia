@@ -126,7 +126,7 @@ function midH_analysis(data::phjlRawDataFrame,r_params::Tuple{Float64,Float64,In
     return midH_array
 end
 
-function pitch_analysis(data::phjlRawDataFrame,r_params::Tuple{Float64,Float64,Int} ,n_theta :: Int, midH_array::Vector, z_saperate::Int =5, smoothed_kernal:: Function = M4_spline,h_mode::String="intep")
+function pitch_analysis(data::phjlRawDataFrame,r_params::Tuple{Float64,Float64,Int} ,n_theta :: Int, midH_array::Vector, z_saperate::Int,column_names::Vector{String}, smoothed_kernal:: Function = M4_spline,h_mode::String="intep")
     """
     Make the data for pitch analysis.
     --------
@@ -139,7 +139,6 @@ function pitch_analysis(data::phjlRawDataFrame,r_params::Tuple{Float64,Float64,I
     """
     @info "Start pitch analysis."
     kdtree3d = Generate_KDtree(data, 3)
-    column_names = ["vr","vphi"]
     function wrap_dens(data::phjlRawDataFrame,point::Array)
         return density(data, point, smoothed_kernal,h_mode,"polar")
     end
@@ -232,7 +231,7 @@ function pitch_analysis(data::phjlRawDataFrame,r_params::Tuple{Float64,Float64,I
     return Result_grid_dict
 end
 
-function pitch_other_analysis(data::phjlRawDataFrame,r_params::Tuple{Float64,Float64,Int}, n_theta :: Int, smoothed_kernal:: Function = M4_spline,h_mode::String="intep")
+function pitch_other_analysis(data::phjlRawDataFrame,r_params::Tuple{Float64,Float64,Int}, n_theta :: Int, column_names::Vector{String}, smoothed_kernal:: Function = M4_spline,h_mode::String="intep")
     """
     Make the data for pitch analysis but no need to considered the midplane
     --------
@@ -245,7 +244,6 @@ function pitch_other_analysis(data::phjlRawDataFrame,r_params::Tuple{Float64,Flo
     """
     @info "Start 2d intepolate analysis."
     kdtree2d = Generate_KDtree(data, 2)
-    column_names = ["e"]
     function wrap_surfdens(data::phjlRawDataFrame ,point::Array)
         return surface_density(data, point, smoothed_kernal,h_mode,"polar")
     end
